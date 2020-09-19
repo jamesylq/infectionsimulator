@@ -66,18 +66,18 @@ class person(object):
                 quit('Maunal termination.')
             if dot.id != self.id:
                 if abs(dot.x - self.x) < infection_radius and abs(dot.y - self.y) < infection_radius:
-                    if random.randint(1, 100) <= int(infection_chance):
+                    if random.randint(1, 10000) <= float(infection_chance) * 100:
                         if self.status == 'healthy' and dot.status == 'infected':
                             print(f'{self.id} is infected by {dot.id}')
                             self.status = 'infected'
                             self.timer = time.time()
             if self.status == 'infected':
                 if time.time() - self.timer >= float(deathdelay) and int(deathdelay) >= 0:
-                    n = random.randint(1, 100)
-                    if n <= int(death_chance):
+                    n = random.randint(1, 10000)
+                    if n <= float(death_chance) * 100:
                         print(f'{self.id} died')
                         self.status = 'dead'
-                    elif n <= int(recover_chance):
+                    elif n <= float(recover_chance) * 100:
                         print(f'{self.id} recovered')
                         self.status = 'recovered'
                     self.timer = time.time()
@@ -211,10 +211,10 @@ defaults = {
     'total': 50,
     'deathdelay': 1,
     'infectionradius': 10,
-    'infectionchance': 30,
+    'infectionchance': 50,
     'virusname': 'COVID-19',
     'loseimmunity': 0.1,
-    'deathchance': 0.1,
+    'deathchance': 1,
     'recoverchance': 10
 }
 
@@ -262,6 +262,9 @@ if death_chance == '':
 recover_chance = input(f'Chance of recovery per tick (Default = {defaults["recoverchance"]}%): ')
 if recover_chance == '':
     recover_chance = defaults['recoverchance'] + defaults['deathchance']
+
+if input('Wear a mask? (Default = no)').lower() in ['yes', 'y', 't', 'true']:
+    infection_chance /= 10
 
 screen = pygame.display.set_mode((length, width))
 pygame.init()

@@ -82,7 +82,7 @@ class person(object):
                         self.status = 'recovered'
                     self.timer = time.time()
             if self.status == 'recovered':
-                if random.randint(1, 10000) <= lose_immunity_chance * 100:
+                if random.randint(1, 10000) <= float(lose_immunity_chance) * 100:
                     self.status = 'healthy'
                     print(f'{self.id} lost its immunity')
 

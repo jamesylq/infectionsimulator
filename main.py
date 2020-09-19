@@ -207,14 +207,14 @@ def checkStatus(status: str, simulation_dots: list):
 
 
 defaults = {
-    'infected': 5,
+    'infected': 1,
     'total': 50,
     'deathdelay': 1,
     'infectionradius': 10,
     'infectionchance': 30,
     'virusname': 'COVID-19',
-    'loseimmunity': 0.01,
-    'deathchance': 1,
+    'loseimmunity': 0.1,
+    'deathchance': 0.1,
     'recoverchance': 10
 }
 
@@ -247,19 +247,19 @@ infection_radius = input(f'Radius of infection (Default = {defaults["infectionra
 if infection_radius == '':
     infection_radius = defaults['infectionradius']
 
-infection_chance = input(f'Chance of infection (Default = {defaults["infectionchance"]}): ')
+infection_chance = input(f'Chance of infection (Default = {defaults["infectionchance"]}%): ')
 if infection_chance == '':
     infection_chance = defaults['infectionchance']
 
-lose_immunity_chance = input(f'Chance of infection (Default = {defaults["loseimmunity"]}): ')
+lose_immunity_chance = input(f'Chance to lose immunity (Default = {defaults["loseimmunity"]}%): ')
 if lose_immunity_chance == '':
     lose_immunity_chance = defaults['loseimmunity']
 
-death_chance = input(f'Chance of death per tick (Default = {defaults["deathchance"]}): ')
+death_chance = input(f'Chance of death per tick (Default = {defaults["deathchance"]}%): ')
 if death_chance == '':
     death_chance = defaults['deathchance']
 
-recover_chance = input(f'Chance of recovery per tick (Default = {defaults["recoverchance"]}): ')
+recover_chance = input(f'Chance of recovery per tick (Default = {defaults["recoverchance"]}%): ')
 if recover_chance == '':
     recover_chance = defaults['recoverchance'] + defaults['deathchance']
 

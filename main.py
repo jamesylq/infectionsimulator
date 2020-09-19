@@ -8,7 +8,6 @@ end_tick = 0
 people = []
 pygame.font.init()
 font = pygame.font.SysFont('Comic Sans MS', 30)
-victoryfont = pygame.font.SysFont('Comic Sans MS', 45)
 simulation_ended = False
 stats = {
     'healthy': 0,
@@ -75,12 +74,12 @@ class person(object):
             if self.status == 'infected':
                 if time.time() - self.timer >= float(deathdelay) and int(deathdelay) >= 0:
                     n = random.randint(1, 100)
-                    if n <= recover_chance:
-                        print(f'{self.id} recovered')
-                        self.status = 'recovered'
-                    elif n <= death_chance:
+                    if n <= death_chance:
                         print(f'{self.id} died')
                         self.status = 'dead'
+                    elif n <= recover_chance:
+                        print(f'{self.id} recovered')
+                        self.status = 'recovered'
                     self.timer = time.time()
             if self.status == 'recovered':
                 if random.randint(1, 10000) <= lose_immunity_chance * 100:
@@ -184,11 +183,11 @@ def draw(simulation_people: list, colour=(0, 0, 0)):
     pygame.display.update()
 
 
-def move(simulation_people: list, minimum_distance=1, maximum_distance=1):
+def move(simulation_people: list):
     for dot in simulation_people:
         if pygame.event.get(pygame.QUIT):
             quit('Manual termination.')
-        dot.move(minimum_distance, maximum_distance)
+        dot.move()
 
 
 def check(simulation_people: list, deathdelay: int, infection_chance: int = 100, infection_radius: int = 10):
@@ -210,8 +209,6 @@ def checkStatus(status: str, simulation_dots: list):
 defaults = {
     'infected': 5,
     'total': 50,
-    'mindistance': 1,
-    'maxdistance': 5,
     'deathdelay': 1,
     'infectionradius': 10,
     'infectionchance': 30,
@@ -241,14 +238,6 @@ if totalDots == '':
     startsimulation(inf, defaults['total'])
 else:
     startsimulation(inf, int(totalDots))
-
-minimum = input(f'How far the dots can move at minumum (Default = {defaults["mindistance"]}): ')
-if minimum == '':
-    minimum = defaults['mindistance']
-
-maximum = input(f'How far the dots can move at maximum (Default = {defaults["maxdistance"]}): ')
-if maximum == '':
-    maximum = defaults['maxdistance']
 
 deathdelay = input(f'Time before all infected people have a chance to die/recover (Default = {defaults["deathdelay"]}): ')
 if deathdelay == '':
@@ -280,7 +269,7 @@ pygame.display.set_caption(f'Simulation({infected}-{totalDots})')
 starting_time = time.time()
 
 while True:
-    move(people, int(minimum), int(maximum))
+    move(people)
     check(people, deathdelay, int(infection_chance), int(infection_radius))
     draw(people)
 

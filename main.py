@@ -66,7 +66,7 @@ class person(object):
                 quit('Maunal termination.')
             if dot.id != self.id:
                 if abs(dot.x - self.x) < infection_radius and abs(dot.y - self.y) < infection_radius:
-                    if random.randint(1, 100) <= infection_chance:
+                    if random.randint(1, 100) <= int(infection_chance):
                         if self.status == 'healthy' and dot.status == 'infected':
                             print(f'{self.id} is infected by {dot.id}')
                             self.status = 'infected'
@@ -74,10 +74,10 @@ class person(object):
             if self.status == 'infected':
                 if time.time() - self.timer >= float(deathdelay) and int(deathdelay) >= 0:
                     n = random.randint(1, 100)
-                    if n <= death_chance:
+                    if n <= int(death_chance):
                         print(f'{self.id} died')
                         self.status = 'dead'
-                    elif n <= recover_chance:
+                    elif n <= int(recover_chance):
                         print(f'{self.id} recovered')
                         self.status = 'recovered'
                     self.timer = time.time()

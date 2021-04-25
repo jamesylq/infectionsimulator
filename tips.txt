@@ -1,0 +1,4 @@
+You can click on communities to view their info!
+Use ARROW KEYS to travel between communities!
+The higher a community's hygiene, the less cases there are!
+Press G to toggle between Graph Mode and Regular Mode!

@@ -1,282 +1,431 @@
-import pygame, random, time
+import pygame
+import random
+import pickle
+import upgradeInfo
 
-length, width = 800, 600
+from math import sqrt, ceil, floor
+from _pickle import UnpicklingError
 
-ticks = 0
-simulation_time = 0
-end_tick = 0
-people = []
+
+tips = open("tips.txt").readlines()
 pygame.font.init()
-font = pygame.font.SysFont('Comic Sans MS', 30)
-simulation_ended = False
-stats = {
-    'healthy': 0,
-    'infected': 0,
-    'dead': 0,
-    'recovered': 0
-}
-move_speed = 1
+font = pygame.font.SysFont('comic sans ms', 25)
+moveSpeed = 3
+allEntities = []
+ticks = 0
+selected = -1
+showing = ['dead', 'healthy', 'infected']
+graphMode = False
+pause = False
+dataSave = ''
+upgrades = {'infectionRadius': 0, 'infectionChance': 0, 'infectionTime': 0}
+DNAPoints = 0
+shop = False
 
 
-class person(object):
-    def __init__(self, ID, x: int = length / 2, y: int = width / 2, colour=(128, 128, 128)):
-        self.id = ID
-        self.x = x
-        self.y = y
-        self.colour = colour
-        self.status = 'healthy'
-        self.timer = 0
-        self.target = [-1, -1]
-        self.speed = [0, 0]
+def render():
+    if not pause:
+        for community in communities:
+            community.iterate()
 
-    def getNewTarget(self):
-        self.target = [random.randint(95, length - 95), random.randint(95, width - 95)]
-        self.speed[0] = round((self.target[0] - self.x) * move_speed / 100)
-        self.speed[1] = round((self.target[1] - self.y) * move_speed / 100)
+    if shop:
+        chanceLevel, radiusLevel, timeLevel = upgrades['infectionChance'], upgrades['infectionRadius'], upgrades['infectionTime']
 
-    def move(self):
-        if self.target == [-1, -1]:
-            self.getNewTarget()
+        screen.fill(0x555555)
+        pygame.draw.rect(screen, (255, 0, 0), (975, 0, 25, 25))
+        screen.blit(font.render(f'DNA Points: {DNAPoints}', True, 0), (25, 25))
 
-        if abs(self.x + self.speed[0] - self.target[0]) < abs(self.speed[0]):
-            self.getNewTarget()
-        elif abs(self.y + self.speed[1] - self.target[1]) < abs(self.speed[1]):
-            self.getNewTarget()
+        if upgrades['infectionChance'] != 5:
+            pygame.draw.rect(screen, 0xaaaaaa, [25, 75, 950, 50])
+            screen.blit(font.render(f'Infection Chance: ' + f'Tier {chanceLevel}', True, 0), (35, 85))
+            screen.blit(font.render(f'[Cost: {upgradeInfo.infectionChanceCost[chanceLevel]}]', True, 0), (35, 105))
         else:
-            self.x += self.speed[0]
-            self.y += self.speed[1]
+            pygame.draw.rect(screen, (240, 230, 140), [25, 75, 950, 50])
+            screen.blit(font.render('Infection Chance: MAXED', True, 0), (35, 85))
 
-        if self.speed[0] < move_speed > self.speed[1]:
-            self.getNewTarget()
+        if upgrades['infectionRadius'] != 5:
+            pygame.draw.rect(screen, 0xaaaaaa, [25, 150, 950, 50])
+            screen.blit(font.render(f'Infection Radius: ' + f'Tier {radiusLevel}', True, 0), (35, 160))
+            screen.blit(font.render(f'[Cost: {upgradeInfo.infectionRadiusCost[radiusLevel]}]', True, 0), (35, 180))
+        else:
+            pygame.draw.rect(screen, (240, 230, 140), [25, 150, 950, 50])
+            screen.blit(font.render('Infection Radius: MAXED', True, 0), (35, 160))
 
-    def draw(self, scr, radius=5, thickness=0):
-        colours = {
-            'infected': (255, 0, 0),
-            'healthy': (0, 255, 0),
-            'recovered': (0, 0, 255),
-            'dead': (0, 0, 0)
-        }
-        if self.status != 'dead':
-            self.colour = colours[self.status]
-            pygame.draw.circle(scr, self.colour, (self.x, self.y), radius, thickness)
+        if upgrades['infectionTime'] != 5:
+            pygame.draw.rect(screen, 0xaaaaaa, [25, 225, 950, 50])
+            screen.blit(font.render(f'Infection Time: ' + f'Tier {timeLevel}', True, 0), (35, 235))
+            screen.blit(font.render(f'[Cost: {upgradeInfo.infectionTimeCost[timeLevel]}]', True, 0), (35, 255))
+        else:
+            pygame.draw.rect(screen, (240, 230, 140), [25, 225, 950, 50])
+            screen.blit(font.render('Infection Time: MAXED', True, 0), (35, 235))
 
-    def check(self, simulation_dots: list, deathdelay: int, infection_chance: int, infection_radius: int):
-        for dot in simulation_dots:
-            if pygame.event.get(pygame.QUIT):
-                quit('Maunal termination.')
-            if dot.id != self.id:
-                if abs(dot.x - self.x) < infection_radius and abs(dot.y - self.y) < infection_radius:
-                    if random.randint(1, 10000) <= float(infection_chance) * 100:
-                        if self.status == 'healthy' and dot.status == 'infected':
-                            print(f'{self.id} is infected by {dot.id}')
-                            self.status = 'infected'
-                            self.timer = time.time()
-            if self.status == 'infected':
-                if time.time() - self.timer >= float(deathdelay) and int(deathdelay) >= 0:
-                    n = random.randint(1, 10000)
-                    if n <= float(death_chance) * 100:
-                        print(f'{self.id} died')
-                        self.status = 'dead'
-                    elif n <= float(recover_chance) * 100:
-                        print(f'{self.id} recovered')
-                        self.status = 'recovered'
-                    self.timer = time.time()
-            if self.status == 'recovered':
-                if random.randint(1, 10000) <= float(lose_immunity_chance) * 100:
-                    self.status = 'healthy'
-                    print(f'{self.id} lost its immunity')
+    elif graphMode:
+        screen.fill(0x555555)
+        graph()
 
-
-class SideBar(object):
-    def __init__(self, tracking: int):
-        self.tracking = tracking
-        self.color = (255, 255, 255)
-        self.showing = False
-
-    def draw(self, scr, simulation_dots):
-        if self.showing:
-            pygame.draw.rect(scr, self.color, (length - 200, 0, 200, width))
-            textImg = font.render(f'Current State: {simulation_dots[self.tracking].status}', False, (128, 128, 128))
-            screen.blit(textImg, (length - 180, 20))
-
-
-def startsimulation(infected=None, count=10, coords=None):
-    if infected is None:
-        infected = [0]
-    if coords is None:
-        for n in range(count):
-            people.append(person(n, random.randint(100, length - 100), random.randint(100, width - 100)))
-            if n in infected:
-                people[n].status = 'infected'
-                people[n].colour = (255, 0, 0)
-                people[n].timer = time.time()
     else:
-        if type(coords) is not list:
-            quit('Invalid input! The coords given is not a list! Please do note that it can not be a tuple.')
-        elif len(coords) != count:
-            quit('Invalid input! The length of list coords were not the same as the count given!')
-        n = 0
-        for coord in coords:
-            people.append(person(n, coord[0], coord[1]))
-            n += 1
+        screen.fill(0)
 
+        for community in communities:
+            community.draw()
 
-def draw(simulation_people: list, colour=(0, 0, 0)):
-    global starting_time, simulation_ended, simulation_time, end_tick
+        pygame.draw.rect(screen, 0xcccccc, [0, 575, 1000, 125])
+        pygame.draw.rect(screen, 0xaaaaaa, [800, 0, 200, 575])
+        pygame.draw.rect(screen, (0, 0, 255), [925, 575, 75, 35])
+        screen.blit(font.render(f'SHOP', True, 0), (938, 585))
+        screen.blit(font.render(f'DNA Points: {DNAPoints}', True, 0), (825, 550))
+        total = 0
+        stats = {
+            'healthy': 0,
+            'infected': 0,
+            'dead': 0
+        }
+        for entity in allEntities:
+            stats[entity.status] += 1
+            total += 1
+        screen.blit(font.render(f'Healthy: {stats["healthy"]} ({round(stats["healthy"] / total * 100, 1)}%)', True, (0, 255, 0)), (25, 600))
+        screen.blit(font.render(f'Infected: {stats["infected"]} ({round(stats["infected"] / total * 100, 1)}%)', True, (255, 0, 0)), (25, 625))
+        screen.blit(font.render(f'Dead: {stats["dead"]} ({round(stats["dead"] / total * 100, 1)}%)', True, (128, 128, 128)), (25, 650))
+        screen.blit(font.render(f'Time: {ticks}t', True, 0), (800, 680))
 
-    screen.fill(colour)
-    for dot in simulation_people:
-        if pygame.event.get(pygame.QUIT):
-            quit('Manual termination.')
-        dot.draw(screen)
-    pygame.draw.rect(screen, (255, 255, 255), (90, 90, length - 180, width - 180), 5)
+        if selected != -1:
+            selectedCommunity = None
+            for community in communities:
+                if community.origin == selected:
+                    selectedCommunity = community
+                    pygame.draw.rect(screen, 0x222222, selectedCommunity.rect, 10)
+            if selectedCommunity is not None:
+                stats = {
+                    'healthy': 0,
+                    'infected': 0,
+                    'dead': 0
+                }
+                total = 0
+                for entity in selectedCommunity.entities:
+                    stats[entity.status] += 1
+                    total += 1
+                screen.blit(font.render(f'Community {selected}', True, (0, 0, 0)), (810, 25))
+                screen.blit(font.render(f'Healthy: {stats["healthy"]} ({round(stats["healthy"] / total * 100, 1)}%)', True, (0, 255, 0)), (810, 50))
+                screen.blit(font.render(f'Infected: {stats["infected"]} ({round(stats["infected"] / total * 100, 1)}%)', True, (255, 0, 0)), (810, 75))
+                screen.blit(font.render(f'Dead: {stats["dead"]} ({round(stats["dead"] / total * 100, 1)}%)', True, (128, 128, 128)), (810, 100))
+                screen.blit(font.render(f'Hygiene: {selectedCommunity.hygiene}', True, (0, 0, 0)), (810, 150))
 
-    stats = {
-        'healthy': 0,
-        'infected': 0,
-        'dead': 0,
-        'recovered': 0
-    }
-    for dot in simulation_people:
-        if pygame.event.get(pygame.QUIT):
-            quit('Maunal termination.')
-        stats[dot.status] += 1
-    texts = [
-        [
-            font.render(
-                f'Healthy: {stats["healthy"]} ({round(stats["healthy"] / int(totalDots) * 1000) / 10}%)',
-                False, (0, 255, 0)), (100, 525)
-        ], [
-            font.render(
-                f'Infected: {stats["infected"]} ({round(stats["infected"] / int(totalDots) * 1000) / 10}%)',
-                False, (255, 0, 0)), (100, 550)
-        ], [
-            font.render(
-                f'Dead: {stats["dead"]} ({round(stats["dead"] / int(totalDots) * 1000) / 10}%)',
-                False, (128, 128, 128)), (400, 525)
-        ], [
-            font.render(
-                f'Immune: {stats["recovered"]} ({round(stats["recovered"] / int(totalDots) * 1000) / 10}%)',
-                False, (0, 0, 225)), (400, 550)
-        ]
-    ]
-    for text in texts:
-        screen.blit(text[0], text[1])
-        if pygame.event.get(pygame.QUIT):
-            quit('Maunal termination.')
+                pygame.draw.rect(screen, 0x555555, (810, 195, 120, 50))
+                screen.blit(font.render(f'Add Infected:', True, (0, 0, 0)), (813, 200))
+                screen.blit(font.render(f'1000 DNA', True, (0, 0, 0)), (813, 225))
 
-    if not simulation_ended:
-        simulation_time = round(time.time() - starting_time, 1)
-        end_tick = ticks
-    if checkStatus('infected', simulation_people):
-        if not simulation_ended:
-            simulation_ended = True
-            print(f'| Simulation ended with runtime {simulation_time}s and {end_tick} ticks. {virus_name} exterminated with {stats["dead"]} dead. |')
-    if checkStatus('healthy', simulation_people) and checkStatus('recovered', simulation_people):
-        if not simulation_ended:
-            simulation_ended = True
-            print(f'| Simulation ended with runtime {simulation_time}s and {end_tick} ticks. {virus_name} infected everyone! |')
-
-    textImg = font.render(f'Ticks since start: {ticks}t', False, (128, 128, 128))
-    screen.blit(textImg, (0, 0))
+        screen.blit(font.render('Tip:  ' + tips[ticks // 1000 % len(tips)].replace('\n', ''), True, 0), (325, 610))
 
     pygame.display.update()
 
 
-def move(simulation_people: list):
-    for dot in simulation_people:
-        if pygame.event.get(pygame.QUIT):
-            quit('Manual termination.')
-        dot.move()
+def graph():
+    mx = pygame.mouse.get_pos()[0] if savedMX == -1 else savedMX
+    if mx < 50:
+        mx = 50
+    if mx > 950:
+        mx = 950
+
+    data = dataSave.split('\n')
+    last = []
+    n = 0
+    coords = {'healthy': [], 'infected': [], 'dead': []}
+    for value in data:
+        if value == '':
+            break
+        healthy, infected, dead = [int(val) for val in value.split(' ')]
+        last = [healthy, infected, dead]
+        coords['healthy'].append((50 + 900 * n / len(data), 650 - 600 * healthy / (healthy + infected + dead)))
+        coords['infected'].append((50 + 900 * n / len(data), 650 - 600 * infected / (healthy + infected + dead)))
+        coords['dead'].append((50 + 900 * n / len(data), 650 - 600 * dead / (healthy + infected + dead)))
+        n += 1
+
+    for n in range(len(coords['healthy'])-1):
+        pygame.draw.line(screen, (0, 255, 0), coords['healthy'][n], coords['healthy'][n+1], 3)
+        if coords['healthy'][n][0] <= mx <= coords['healthy'][n+1][0]:
+            pygame.draw.circle(screen, 0, coords['healthy'][n], 5)
+            screen.blit(font.render(str(data[n].replace('\n', '').split(' ')[0]), True, 0), (coords['healthy'][n][0] - 10, coords['healthy'][n][1] - 25))
+    for n in range(len(coords['infected']) - 1):
+        pygame.draw.line(screen, (255, 0, 0), coords['infected'][n], coords['infected'][n+1], 3)
+        if coords['infected'][n][0] <= mx <= coords['infected'][n+1][0]:
+            pygame.draw.circle(screen, 0, coords['infected'][n], 5)
+            screen.blit(font.render(str(data[n].replace('\n', '').split(' ')[1]), True, 0), (coords['infected'][n][0] - 10, coords['infected'][n][1] - 25))
+    for n in range(len(coords['dead']) - 1):
+        pygame.draw.line(screen, 0xaaaaaa, coords['dead'][n], coords['dead'][n+1], 3)
+        if coords['dead'][n][0] <= mx <= coords['dead'][n+1][0]:
+            pygame.draw.circle(screen, 0, coords['dead'][n], 5)
+            screen.blit(font.render(str(data[n].replace('\n', '').split(' ')[2]), True, 0), (coords['dead'][n][0] - 10, coords['dead'][n][1] - 25))
+
+    screen.blit(font.render(str(last[0]), True, (0, 255, 0)), (960, coords['healthy'][-1][1] - 5))
+    screen.blit(font.render(str(last[1]), True, (255, 0, 0)), (960, coords['infected'][-1][1] - 5))
+    screen.blit(font.render(str(last[2]), True, (170, 170, 170)), (960, coords['dead'][-1][1] - 5))
+
+    # pygame.draw.line(screen, (0, 0, 255), (mx, 50), (mx, 650))
 
 
-def check(simulation_people: list, deathdelay: int, infection_chance: int = 100, infection_radius: int = 10):
-    for dot in simulation_people:
-        if pygame.event.get(pygame.QUIT):
-            quit('Manual termination.')
-        dot.check(simulation_people, deathdelay, infection_chance, infection_radius)
+def load():
+    global communities, ticks, dataSave, upgrades, DNAPoints
+
+    try:
+        communities, ticks, dataSave, upgrades, DNAPoints = pickle.load(open('save.txt', 'rb'))
+    except (EOFError, UnpicklingError, ValueError):
+        communities = []
 
 
-def checkStatus(status: str, simulation_dots: list):
-    for dot in simulation_dots:
-        if pygame.event.get(pygame.QUIT):
-            quit('Manual termination.')
-        if dot.status == status:
-            return False
-    return True
+def save():
+    global dataSave
+
+    if pause:
+        return
+
+    if ticks % 15 == 1:
+        data = {'infected': 0, 'dead': 0, 'healthy': 0}
+        for community in communities:
+            for entity in community.entities:
+                data[entity.status] += 1
+
+        dataSave += f'{data["healthy"]} {data["infected"]} {data["dead"]}\n'
+
+    pickle.dump([communities, ticks, dataSave, upgrades, DNAPoints], open('save.txt', 'wb'))
 
 
-defaults = {
-    'infected': 1,
-    'total': 50,
-    'deathdelay': 1,
-    'infectionradius': 10,
-    'infectionchance': 50,
-    'virusname': 'COVID-19',
-    'loseimmunity': 0.1,
-    'deathchance': 1,
-    'recoverchance': 10
-}
+class community(object):
+    def __init__(self, x, y, w, h, size, origin):
+        self.rect = [x, y, w, h]
+        self.origin = origin
+        self.entities = []
+        self.hygiene = random.randint(50, 100) / 100
+        for n in range(size):
+            self.entities.append(entity(random.randint(x+5, x+w-5), random.randint(y+5, y+w-5), 'healthy' if random.randint(1, 250) != 1 else 'infected', self))
+            if self.entities[-1].status == 'infected':
+                self.entities[-1].timer = upgradeInfo.infectionTime[upgrades['infectionTime']] + 50
 
-virus_name = input(f'Name of virus (Default = {defaults["virusname"]}): ')
-if virus_name == '':
-    virus_name = defaults['virusname']
+    def draw(self):
+        pygame.draw.rect(screen, (255, 255, 255), self.rect, 3)
+        for entity in self.entities:
+            if entity.status in showing:
+                entity.draw()
 
-infected = input(f'How many infected to start with (Default = {defaults["infected"]}): ')
-inf = []
-if infected == "":
-    infected = defaults['infected']
-    for n in range(defaults['infected']):
-        inf.append(n)
-else:
-    for n in range(int(infected)):
-        inf.append(n)
+    def iterate(self):
+        global allEntities
 
-totalDots = input(f'How many total dots (Default = {defaults["total"]}): ')
-if totalDots == '':
-    totalDots = defaults['total']
-    startsimulation(inf, defaults['total'])
-else:
-    startsimulation(inf, int(totalDots))
+        allEntities = []
+        for community in communities:
+            for entity in community.entities:
+                allEntities.append(entity)
+        for entity in self.entities:
+            entity.move()
+            entity.check()
 
-deathdelay = input(f'Time before all infected people have a chance to die/recover (Default = {defaults["deathdelay"]}): ')
-if deathdelay == '':
-    deathdelay = defaults['deathdelay']
+    def addInfected(self):
+        global DNAPoints
+        
+        healthy = [entity for entity in self.entities if entity.status == "healthy"]
+        if len(healthy) != 0:
+            newInfected = random.choice(healthy)
+            newInfected.status = 'infected'
+            newInfected.timer = upgradeInfo.infectionTime[upgrades['infectionTime']]
+        else:
+            DNAPoints += 1000
 
-infection_radius = input(f'Radius of infection (Default = {defaults["infectionradius"]}): ')
-if infection_radius == '':
-    infection_radius = defaults['infectionradius']
 
-infection_chance = input(f'Chance of infection (Default = {defaults["infectionchance"]}%): ')
-if infection_chance == '':
-    infection_chance = defaults['infectionchance']
+class entity(object):
+    def __init__(self, x, y, status, parent):
+        self.x = x
+        self.y = y
+        self.status = status
+        self.color = {
+            'infected': 0xFF0000,
+            'healthy': 0x00FF00,
+            'dead': 0xCCCCCC
+        }
+        self.target = []
+        self.parent = parent
+        self.onLand = True
+        self.timer = 0
+        self.cooldown = 0
 
-lose_immunity_chance = input(f'Chance to lose immunity (Default = {defaults["loseimmunity"]}%): ')
-if lose_immunity_chance == '':
-    lose_immunity_chance = defaults['loseimmunity']
+        self.getTarget()
 
-death_chance = input(f'Chance of death per tick (Default = {defaults["deathchance"]}%): ')
-if death_chance == '':
-    death_chance = defaults['deathchance']
+    def draw(self):
+        pygame.draw.circle(screen, self.color[self.status], [self.x, self.y], 3)
 
-recover_chance = input(f'Chance of recovery per tick (Default = {defaults["recoverchance"]}%): ')
-if recover_chance == '':
-    recover_chance = defaults['recoverchance'] + defaults['deathchance']
+    def move(self):
+        if self.status == 'dead':
+            return
 
-if input('Wear a mask? (Default = no)').lower() in ['yes', 'y', 't', 'true']:
-    infection_chance /= 10
+        if sqrt(abs(self.target[0]-self.x)**2 + abs(self.target[1]-self.y)**2) < 5:
+            self.getTarget()
 
-screen = pygame.display.set_mode((length, width))
+        dx = (self.target[0] - self.x) * moveSpeed / 100
+        dy = (self.target[1] - self.y) * moveSpeed / 100
+        if dx < 0:
+            dx = floor(dx)
+        else:
+            dx = ceil(dx)
+        self.x += dx
+        self.y += dy
+
+    def check(self):
+        global allEntities, DNAPoints
+
+        if self.status == 'infected':
+            if self.timer > 0:
+                self.timer -= 1
+                if random.randint(1, round(10000 * self.parent.hygiene)) == 1 and self.onLand:
+                    self.status = 'dead'
+            else:
+                self.status = 'healthy'
+        if self.cooldown == 0:
+            if self.status == 'healthy':
+                if self.onLand:
+                    for entity in allEntities:
+                        if entity != self and entity.onLand and entity.status == 'infected':
+                            rand = random.randint(1, 100)
+                            if sqrt(abs(entity.x-self.x)**2 + abs(entity.y-self.y)**2) < upgradeInfo.infectionRadius[upgrades['infectionRadius']]:
+                                if rand > upgradeInfo.infectionChance[upgrades['infectionChance']] * self.parent.hygiene:
+                                    self.status = 'infected'
+                                    self.timer = upgradeInfo.infectionTime[upgrades['infectionTime']]
+                                    DNAPoints += 1
+                                else:
+                                    self.cooldown = 50
+        else:
+            self.cooldown -= 1
+
+    def getTarget(self):
+        if not self.onLand:
+            self.onLand = True
+
+        if random.randint(1, 100) == 1 and self.target and self in self.parent.entities:
+            self.parent.entities.remove(self)
+            self.parent = random.choice(communities)
+            self.parent.entities.append(self)
+            self.onLand = False
+        self.target = [random.randint(self.parent.rect[0]+3, self.parent.rect[0]+self.parent.rect[2]-3),
+                       random.randint(self.parent.rect[1]+3, self.parent.rect[1]+self.parent.rect[3]-3)]
+
+
+communities = []
+if input('Load saved simulation? [Y/n]').lower() in ['', 'y', 'yes']:
+    load()
+screen = pygame.display.set_mode((1000, 700))
 pygame.init()
-pygame.display.set_caption(f'Simulation({infected}-{totalDots})')
-starting_time = time.time()
-
+pygame.display.set_caption('InfectionSimulator')
+if not communities:
+    for n in range(7):
+        for m in range(5):
+            communities.append(community(n * 100 + n * 10 + 20, m * 100 + m * 10 + 20, 100, 100, 15, [n, m]))
+    open('data.txt', 'w').write('')
 while True:
-    move(people)
-    check(people, deathdelay, int(infection_chance), int(infection_radius))
-    draw(people)
+    render()
 
-    ticks += 1
+    pygame.display.update()
 
-    if pygame.event.get(pygame.QUIT):
-        quit('Manual termination.')
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            quit()
+
+        elif event.type == pygame.MOUSEMOTION:
+            savedMX = -1
+
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 1:
+                mx, my = pygame.mouse.get_pos()
+
+                if shop:
+                    if mx > 975 and my < 25:
+                        shop = False
+
+                    # [25, 75, 950, 50]
+                    if 25 < mx < 975 and 75 < my < 125:     # chance
+                        try:
+                            cost = upgradeInfo.infectionChanceCost[upgrades['infectionChance']]
+                            if DNAPoints >= cost:
+                                DNAPoints -= cost
+                                upgrades['infectionChance'] += 1
+                        except IndexError:
+                            pass
+                    if 25 < mx < 975 and 150 < my < 200:     # radius
+                        try:
+                            cost = upgradeInfo.infectionRadiusCost[upgrades['infectionRadius']]
+                            if DNAPoints >= cost:
+                                DNAPoints -= cost
+                                upgrades['infectionRadius'] += 1
+                        except IndexError:
+                            pass
+                    if 25 < mx < 975 and 225 < my < 275:     # time
+                        try:
+                            cost = upgradeInfo.infectionTimeCost[upgrades['infectionTime']]
+                            if DNAPoints >= cost:
+                                DNAPoints -= cost
+                                upgrades['infectionTime'] += 1
+                        except IndexError:
+                            pass
+                elif graphMode:
+                    pass
+                else:
+                    if 810 < mx < 930 and 195 < my < 220:
+                        sc = None
+                        for c in communities:
+                            if c.origin == selected:
+                                sc = c
+                        if sc is not None and DNAPoints >= 1000:
+                            DNAPoints -= 1000
+                            sc.addInfected()
+                            continue
+
+                    if 925 < mx < 1000 and 575 < my < 610:
+                        shop = True
+                        continue
+
+                    selected = [(mx - 20) // 110, (my - 20) // 110]
+
+                    if 600 < my:
+                        if 600 < my < 625 and 25 < mx < 275:
+                            if pygame.key.get_pressed()[pygame.K_LCTRL]:
+                                if 'healthy' in showing:
+                                    showing.remove('healthy')
+                                else:
+                                    showing.append('healthy')
+                            else:
+                                showing = ['healthy']
+                        elif 625 < my < 650 and 25 < mx < 275:
+                            if pygame.key.get_pressed()[pygame.K_LCTRL]:
+                                if 'infected' in showing:
+                                    showing.remove('infected')
+                                else:
+                                    showing.append('infected')
+                            else:
+                                showing = ['infected']
+                        elif 650 < my < 675 and 25 < mx < 275:
+                            if pygame.key.get_pressed()[pygame.K_LCTRL]:
+                                if 'dead' in showing:
+                                    showing.remove('dead')
+                                else:
+                                    showing.append('dead')
+                            else:
+                                showing = ['dead']
+                    elif selected[0] > 6 or selected[1] > 4:
+                        showing = ['dead', 'healthy', 'infected']
+
+        elif event.type == pygame.KEYDOWN:
+            if selected != -1:
+                if event.key == pygame.K_DOWN:
+                    if selected[1] < 4:
+                        selected[1] += 1
+                elif event.key == pygame.K_UP:
+                    if selected[1] > 0:
+                        selected[1] -= 1
+                elif event.key == pygame.K_LEFT:
+                    if selected[0] > 0:
+                        selected[0] -= 1
+                elif event.key == pygame.K_RIGHT:
+                    if selected[0] < 6:
+                        selected[0] += 1
+            if event.key == pygame.K_g:
+                graphMode = not graphMode
+            if event.key == pygame.K_p:
+                pause = not pause
+
+    ticks += 1 if not pause else 0
+    save()
